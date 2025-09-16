@@ -11,47 +11,72 @@ export async function generateInterviewQuestions(
 ): Promise<string[]> {
   try {
     const companyContext = company ? ` at ${company}` : "";
-    const prompt = `Generate 5 relevant interview questions for a ${role} position${companyContext}. 
-    
-    Consider the following:
-    - Technical skills specific to the role
-    - Behavioral questions relevant to the position level
-    - Company-specific challenges if company is mentioned
-    - Industry best practices and current trends
-    
-    Return questions that would realistically be asked in a professional interview setting.
-    Focus on questions that allow candidates to demonstrate their expertise and problem-solving abilities.`;
+    const systemPrompt = `You are an expert interview coach. Generate exactly 5 unique, relevant interview questions for a ${role} position${companyContext}.
+
+Consider the following:
+- Technical skills specific to the role
+- Behavioral questions relevant to the position level
+- Company-specific challenges if company is mentioned
+- Industry best practices and current trends
+
+Return a JSON array of exactly 5 questions that would realistically be asked in a professional interview setting.
+Focus on questions that allow candidates to demonstrate their expertise and problem-solving abilities.
+Each question should be distinct and cover different aspects of the role.
+
+Format your response as a JSON array: ["question1", "question2", "question3", "question4", "question5"]`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: prompt,
+      contents: `${systemPrompt}\n\nNow generate interview questions for: ${role}${companyContext}`,
     });
 
-    const content = response.text || "";
+    const rawText = response.text || "";
+    console.log(`Gemini API Response for ${role}:`, { 
+      status: 'success', 
+      outputLength: rawText.length, 
+      preview: rawText.substring(0, 200),
+      fullResponse: rawText
+    });
     
-    // Parse the response to extract individual questions
-    const questions = content
-      .split(/\d+\.|\n-|\n\*/)
-      .map(q => q.trim())
-      .filter(q => q.length > 10 && q.includes('?'))
-      .slice(0, 5);
+    // Try to parse JSON from the response
+    let questions: string[] = [];
+    try {
+      // Look for JSON array in the response
+      const jsonMatch = rawText.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) {
+        questions = JSON.parse(jsonMatch[0]);
+      } else {
+        // Fall back to parsing line-by-line
+        questions = rawText
+          .split(/\n/)
+          .map(line => line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '').trim())
+          .filter(line => line.length > 10 && line.includes('?'))
+          .slice(0, 5);
+      }
+    } catch (parseError) {
+      console.log(`JSON parse failed for ${role}, trying line parsing:`, parseError);
+      questions = rawText
+        .split(/\n/)
+        .map(line => line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '').trim())
+        .filter(line => line.length > 10 && line.includes('?'))
+        .slice(0, 5);
+    }
+    
+    if (Array.isArray(questions) && questions.length > 0) {
+      return questions.slice(0, 5); // Ensure we only return 5 questions
+    }
+    
+    throw new Error("Could not extract valid questions from Gemini API response");
 
-    return questions.length > 0 ? questions : [
-      `Tell me about your experience with ${role.toLowerCase()} responsibilities.`,
-      `What interests you most about this ${role.toLowerCase()} position?`,
-      `Describe a challenging project you've worked on recently.`,
-      `How do you stay updated with industry trends and best practices?`,
-      `What are your career goals in the next 2-3 years?`
-    ];
   } catch (error) {
-    console.error("Failed to generate questions:", error);
-    // Return fallback questions
+    console.error(`Failed to generate questions for ${role}:`, error);
+    // Return fallback questions with role-specific variations
     return [
       `Tell me about your experience with ${role.toLowerCase()} responsibilities.`,
-      `What interests you most about this ${role.toLowerCase()} position?`,
-      `Describe a challenging project you've worked on recently.`,
-      `How do you stay updated with industry trends and best practices?`,
-      `What are your career goals in the next 2-3 years?`
+      `What interests you most about this ${role.toLowerCase()} position${company ? ` at ${company}` : ''}?`,
+      `Describe a challenging project you've worked on recently in your ${role.toLowerCase()} role.`,
+      `How do you stay updated with industry trends and best practices in ${role.toLowerCase()}?`,
+      `What are your career goals in the next 2-3 years as a ${role.toLowerCase()}?`
     ];
   }
 }
@@ -89,48 +114,45 @@ Please provide detailed feedback on this interview response.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-pro",
-      config: {
-        systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: {
-            clarity: { type: "number", minimum: 1, maximum: 5 },
-            relevance: { type: "number", minimum: 1, maximum: 5 },
-            suggestions: { 
-              type: "array", 
-              items: { type: "string" },
-              minItems: 1,
-              maxItems: 4
-            },
-            overall: { type: "string" }
-          },
-          required: ["clarity", "relevance", "suggestions", "overall"]
-        }
-      },
-      contents: userPrompt,
+      contents: `${systemPrompt}\n\n${userPrompt}`,
     });
 
-    const rawJson = response.text;
+    const rawText = response.text || "";
+    console.log(`Gemini Feedback API Response:`, { 
+      questionPreview: question.substring(0, 50), 
+      answerPreview: answer.substring(0, 50),
+      responseLength: rawText.length,
+      responsePreview: rawText.substring(0, 200)
+    });
     
-    if (rawJson) {
-      const feedback: InterviewFeedback = JSON.parse(rawJson);
-      
-      // Validate the response
-      if (typeof feedback.clarity === 'number' && 
-          typeof feedback.relevance === 'number' &&
-          Array.isArray(feedback.suggestions) &&
-          typeof feedback.overall === 'string') {
-        
-        // Ensure scores are within valid range
-        feedback.clarity = Math.max(1, Math.min(5, Math.round(feedback.clarity)));
-        feedback.relevance = Math.max(1, Math.min(5, Math.round(feedback.relevance)));
-        
-        return feedback;
+    // Try to parse JSON from the response
+    let feedback: InterviewFeedback;
+    try {
+      const jsonMatch = rawText.match(/\{[\s\S]*?\}/);
+      if (jsonMatch) {
+        feedback = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No JSON object found in response");
       }
+    } catch (parseError) {
+      console.log("JSON parse failed for feedback, using fallback:", parseError);
+      throw parseError;
     }
     
-    throw new Error("Invalid response format from AI model");
+    // Validate the feedback response
+    if (typeof feedback.clarity === 'number' && 
+        typeof feedback.relevance === 'number' &&
+        Array.isArray(feedback.suggestions) &&
+        typeof feedback.overall === 'string') {
+      
+      // Ensure scores are within valid range
+      feedback.clarity = Math.max(1, Math.min(5, Math.round(feedback.clarity)));
+      feedback.relevance = Math.max(1, Math.min(5, Math.round(feedback.relevance)));
+      
+      return feedback;
+    }
+    
+    throw new Error("Invalid feedback response format from AI model");
     
   } catch (error) {
     console.error("Failed to provide feedback:", error);
