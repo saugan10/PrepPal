@@ -1,0 +1,73 @@
+Interview Prep Assistant is a Next.js + MongoDB application that helps job seekers track applications and prepare for interviews interactively.
+Beyond CRUD, it integrates Google Gemini AI to generate role-specific interview questions and provide feedback on answers, making interview preparation more engaging and personalized.
+
+🔑 Key Features
+1. Job Applications Management (CRUD)
+
+Add / Edit / Delete Applications with fields: company, role, status (applied, interview, offer, rejected), and tags (dream, target, backup).
+
+Paginated Applications List with filters (status, tag).
+
+Application Detail Page showing stored notes & interview practice history.
+
+2. AI-Powered Interview Prep Assistant (Gemini)
+
+Role-Aware Question Generation → Gemini suggests interview questions tailored to the role (e.g., Frontend → React/Next.js, Backend → APIs/Databases, Data → SQL/ML).
+
+Interactive Chat → User practices answers in a chatbot-style UI.
+
+Smart Feedback → Gemini provides instant, context-aware feedback:
+
+Clarity (Was the answer structured?)
+
+Relevance (Did it address the question fully?)
+
+Improvement Tips (e.g., "Add an example from your past project").
+
+Save to Notes → Both questions and user answers (with Gemini feedback) are stored under interviewNotes for that job application.
+
+3. Notes & Insights
+
+Interview history per application:
+
+Question → User Answer → Gemini Feedback.
+
+Export notes for offline prep (PDF/Markdown).
+
+4. Modern User Experience
+
+Chat UI → Powered by Tailwind + shadcn/ui, mimicking chat apps.
+
+CRUD Pages → List, Add, Edit, Delete applications.
+
+Filtering & Search → By status, tag, or company.
+
+5. Deployment & Extensibility
+
+Dockerized → Runs in a container with Next.js + MongoDB + Gemini integration.
+
+Authentication (Optional) → NextAuth.js for personal account protection.
+
+Testing (Optional) → Jest + React Testing Library for API & UI tests.
+
+🛠 Tech Stack
+
+Frontend: Next.js (React), Tailwind CSS, shadcn/ui
+
+Backend: Next.js API Routes
+
+Database: MongoDB (Atlas or Docker)
+
+AI Integration: Gemini API (for question generation + feedback)
+
+Deployment: Docker & Docker Compose
+
+🌟 Why This Stands Out
+
+Unlike regular job trackers, this app guides users in real-time. With Gemini AI:
+
+It adapts interview prep to specific roles.
+
+Provides personalized feedback.
+
+Creates a structured log of Q&A → a growing personal interview playbook.
