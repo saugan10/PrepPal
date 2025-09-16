@@ -10,13 +10,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { ArrowLeft, ExternalLink, Calendar, User } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import type { QuestionWithAnswer } from "@shared/schema";
+import type { QuestionWithAnswer, Application, InterviewSession } from "@shared/schema";
+
+type ApplicationWithSessions = Application & { sessions?: InterviewSession[] };
 
 export default function ApplicationDetail() {
   const params = useParams();
   const id = params.id as string;
 
-  const { data: application, isLoading, error } = useQuery({
+  const { data: application, isLoading, error } = useQuery<ApplicationWithSessions>({
     queryKey: ['/api/applications', id],
     queryFn: () => api.getApplication(id),
   });
