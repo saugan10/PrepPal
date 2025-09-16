@@ -169,7 +169,7 @@ export default function ApplicationForm({ open, onOpenChange }: ApplicationFormP
                 <FormItem>
                   <FormLabel>Job Description URL</FormLabel>
                   <FormControl>
-                    <Input type="url" placeholder="https://..." {...field} data-testid="input-job-url" />
+                    <Input type="url" placeholder="https://..." {...field} value={field.value || ""} data-testid="input-job-url" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -187,6 +187,7 @@ export default function ApplicationForm({ open, onOpenChange }: ApplicationFormP
                       placeholder="Add any initial thoughts or requirements..."
                       className="h-20"
                       {...field}
+                      value={field.value || ""}
                       data-testid="textarea-notes"
                     />
                   </FormControl>
