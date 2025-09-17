@@ -1,19 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { getStorage } from "./storage";
 import { insertApplicationSchema, updateApplicationSchema, insertSessionSchema } from "@shared/schema";
 import { generateInterviewQuestions, provideFeedback } from "./services/gemini";
 import { isMongoConfigured } from "./database";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const storage = getStorage();
   // Application CRUD routes
   app.get("/api/applications", async (req, res) => {
-    if (!isMongoConfigured()) {
-      return res.status(503).json({ 
-        message: "Database not configured. Please set MONGODB_URI environment variable." 
-      });
-    }
-
     try {
       const { status, tag, search, page = "1", limit = "10" } = req.query;
       const offset = (parseInt(page as string) - 1) * parseInt(limit as string);

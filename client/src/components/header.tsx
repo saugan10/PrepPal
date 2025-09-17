@@ -51,7 +51,7 @@ export default function Header() {
               </svg>
             </button>
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium" data-testid="avatar-user">
-              JD
+              SJ
             </div>
           </div>
         </div>

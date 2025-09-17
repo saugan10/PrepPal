@@ -322,4 +322,22 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MongoStorage();
+// Export a function that returns a runtime-selected singleton storage instance.
+let _mongoInstance: MongoStorage | null = null;
+let _memInstance: MemStorage | null = null;
+
+export function getStorage(): IStorage {
+  if (isMongoConfigured()) {
+    if (!_mongoInstance) {
+      _mongoInstance = new MongoStorage();
+      console.log('Storage: using MongoDB backend');
+    }
+    return _mongoInstance;
+  }
+
+  if (!_memInstance) {
+    _memInstance = new MemStorage();
+    console.log('Storage: using in-memory fallback');
+  }
+  return _memInstance;
+}

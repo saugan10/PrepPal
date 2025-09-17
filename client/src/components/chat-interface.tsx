@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ export default function ChatInterface({ applicationId, role, company, onSessionC
   
   const generateQuestionMutation = useMutation({
     mutationFn: () => api.generateQuestions(role, company),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       if (data.questions.length > 0) {
         const question = data.questions[0];
         setCurrentQuestion(question);
@@ -36,7 +36,7 @@ export default function ChatInterface({ applicationId, role, company, onSessionC
           timestamp: new Date(),
         };
         
-        setMessages(prev => [...prev, newMessage]);
+        setMessages((prev: ChatMessage[]) => [...prev, newMessage]);
       }
     },
   });
@@ -44,7 +44,7 @@ export default function ChatInterface({ applicationId, role, company, onSessionC
   const feedbackMutation = useMutation({
     mutationFn: ({ question, answer }: { question: string; answer: string }) => 
       api.getFeedback(question, answer, role),
-    onSuccess: (feedback: InterviewFeedback, variables) => {
+    onSuccess: (feedback: InterviewFeedback, variables: { question: string; answer: string }) => {
       // Add feedback message
       const feedbackMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -54,7 +54,7 @@ export default function ChatInterface({ applicationId, role, company, onSessionC
         feedback,
       };
       
-      setMessages(prev => [...prev, feedbackMessage]);
+      setMessages((prev: ChatMessage[]) => [...prev, feedbackMessage]);
       
       // Save to session
       if (currentQuestion) {
@@ -65,7 +65,7 @@ export default function ChatInterface({ applicationId, role, company, onSessionC
           timestamp: new Date(),
         };
         
-        setSessionQuestions(prev => [...prev, questionWithAnswer]);
+        setSessionQuestions((prev: QuestionWithAnswer[]) => [...prev, questionWithAnswer]);
       }
       
       // Clear current question
@@ -78,9 +78,16 @@ export default function ChatInterface({ applicationId, role, company, onSessionC
       if (!applicationId) throw new Error("No application ID");
       return api.createSession(applicationId, sessionQuestions);
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      // notify parent with the saved questions, then clear local UI so the session ends immediately
       onSessionComplete?.(sessionQuestions);
+      setMessages([]);
+      setSessionQuestions([]);
+      setCurrentQuestion(null);
     },
+    onError: (err: any) => {
+      console.error('Failed to save session:', err);
+    }
   });
 
   useEffect(() => {
@@ -102,7 +109,7 @@ export default function ChatInterface({ applicationId, role, company, onSessionC
         timestamp: new Date(),
       };
       
-      setMessages(prev => [...prev, answerMessage]);
+      setMessages((prev: ChatMessage[]) => [...prev, answerMessage]);
       feedbackMutation.mutate({ question: currentQuestion, answer: input });
     }
     

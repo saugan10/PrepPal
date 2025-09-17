@@ -1,14 +1,21 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI || process.env.DATABASE_URL || "";
+function getMongoUri(): string {
+  const uri = process.env.MONGODB_URI || process.env.DATABASE_URL || "";
+  console.log("MongoDB URI from env:", uri ? "URI found" : "URI not found");
+  console.log("MONGODB_URI exists:", !!process.env.MONGODB_URI);
+  return uri;
+}
 
-let cached = global.mongoose;
+let cached = (global as any).mongoose;
 
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+  cached = (global as any).mongoose = { conn: null, promise: null };
 }
 
 export async function connectToDatabase() {
+  const MONGODB_URI = getMongoUri();
+
   if (!MONGODB_URI) {
     throw new Error("Database connection failed. Please ensure MONGODB_URI is set correctly.");
   }
@@ -25,6 +32,9 @@ export async function connectToDatabase() {
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongooseInstance) => {
       console.log("Connected to MongoDB");
       return mongooseInstance;
+    }).catch(err => {
+      cached.promise = null;
+      throw err;
     });
   }
 
@@ -40,7 +50,8 @@ export async function connectToDatabase() {
 }
 
 export function isMongoConfigured(): boolean {
-  return !!MONGODB_URI && (MONGODB_URI.startsWith('mongodb://') || MONGODB_URI.startsWith('mongodb+srv://'));
+  const uri = getMongoUri();
+  return !!uri && (uri.startsWith('mongodb://') || uri.startsWith('mongodb+srv://'));
 }
 
 declare global {
