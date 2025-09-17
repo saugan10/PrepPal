@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -81,6 +82,9 @@ export default function ApplicationForm({ open, onOpenChange }: ApplicationFormP
       <DialogContent className="sm:max-w-md" data-testid="dialog-add-application">
         <DialogHeader>
           <DialogTitle>Add New Application</DialogTitle>
+          <DialogDescription>
+            Fill out the form below to track a new job application.
+          </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
