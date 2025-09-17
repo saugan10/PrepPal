@@ -1,50 +1,69 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+import mongoose, { Schema, Document } from "mongoose";
 import { z } from "zod";
 
-export const applications = pgTable("applications", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  company: text("company").notNull(),
-  role: text("role").notNull(),
-  status: text("status").notNull(), // applied, interview, offer, rejected
-  tag: text("tag").notNull(), // dream, target, backup
-  jobUrl: text("job_url"),
-  notes: text("notes").default(""),
-  interviewNotes: jsonb("interview_notes").default("[]"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+// MongoDB Schemas
+const applicationSchema = new Schema({
+  company: { type: String, required: true },
+  role: { type: String, required: true },
+  status: { type: String, required: true }, // applied, interview, offer, rejected
+  tag: { type: String, required: true }, // dream, target, backup
+  jobUrl: { type: String, default: "" },
+  notes: { type: String, default: "" },
+  interviewNotes: { type: [Schema.Types.Mixed], default: [] },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
 });
 
-export const interviewSessions = pgTable("interview_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  applicationId: varchar("application_id").notNull(),
-  questions: jsonb("questions").notNull(), // Array of questions with answers and feedback
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+const interviewSessionSchema = new Schema({
+  applicationId: { type: String, required: true },
+  questions: { type: [Schema.Types.Mixed], required: true }, // Array of questions with answers and feedback
+  createdAt: { type: Date, default: Date.now },
 });
 
-export const insertApplicationSchema = createInsertSchema(applications).pick({
-  company: true,
-  role: true,
-  status: true,
-  tag: true,
-  jobUrl: true,
-  notes: true,
+// MongoDB Models
+export const Application = mongoose.model("Application", applicationSchema);
+export const InterviewSession = mongoose.model("InterviewSession", interviewSessionSchema);
+
+// Zod validation schemas for API
+export const insertApplicationSchema = z.object({
+  company: z.string().min(1, "Company name is required"),
+  role: z.string().min(1, "Role is required"),
+  status: z.enum(["applied", "interview", "offer", "rejected"]),
+  tag: z.enum(["dream", "target", "backup"]),
+  jobUrl: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 export const updateApplicationSchema = insertApplicationSchema.partial().extend({
   id: z.string(),
 });
 
-export const insertSessionSchema = createInsertSchema(interviewSessions).pick({
-  applicationId: true,
-  questions: true,
+export const insertSessionSchema = z.object({
+  applicationId: z.string().min(1, "Application ID is required"),
+  questions: z.array(z.any()),
 });
 
+// TypeScript types
 export type InsertApplication = z.infer<typeof insertApplicationSchema>;
 export type UpdateApplication = z.infer<typeof updateApplicationSchema>;
-export type Application = typeof applications.$inferSelect;
-export type InterviewSession = typeof interviewSessions.$inferSelect;
+export type ApplicationType = {
+  _id: string;
+  company: string;
+  role: string;
+  status: "applied" | "interview" | "offer" | "rejected";
+  tag: "dream" | "target" | "backup";
+  jobUrl?: string;
+  notes?: string;
+  interviewNotes: any[];
+  createdAt: Date;
+  updatedAt: Date;
+};
+export type InterviewSessionType = {
+  _id: string;
+  applicationId: string;
+  questions: any[];
+  createdAt: Date;
+};
 export type InsertSession = z.infer<typeof insertSessionSchema>;
 
 // Types for interview chat
