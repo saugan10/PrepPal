@@ -1,30 +1,32 @@
 import { 
-  type Application, 
+  Application,
+  InterviewSession,
+  type ApplicationType, 
   type InsertApplication,
   type UpdateApplication,
-  type InterviewSession,
+  type InterviewSessionType,
   type InsertSession,
   type QuestionWithAnswer 
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { connectToDatabase } from "./database";
 
 export interface IStorage {
   // Application CRUD
-  getApplication(id: string): Promise<Application | undefined>;
+  getApplication(id: string): Promise<ApplicationType | undefined>;
   getApplications(filters?: {
     status?: string;
     tag?: string;
     search?: string;
     limit?: number;
     offset?: number;
-  }): Promise<{ applications: Application[]; total: number }>;
-  createApplication(application: InsertApplication): Promise<Application>;
-  updateApplication(application: UpdateApplication): Promise<Application | undefined>;
+  }): Promise<{ applications: ApplicationType[]; total: number }>;
+  createApplication(application: InsertApplication): Promise<ApplicationType>;
+  updateApplication(application: UpdateApplication): Promise<ApplicationType | undefined>;
   deleteApplication(id: string): Promise<boolean>;
   
   // Interview Sessions
-  getSessionsByApplication(applicationId: string): Promise<InterviewSession[]>;
-  createSession(session: InsertSession): Promise<InterviewSession>;
+  getSessionsByApplication(applicationId: string): Promise<InterviewSessionType[]>;
+  createSession(session: InsertSession): Promise<InterviewSessionType>;
   
   // Statistics
   getApplicationStats(): Promise<{
@@ -35,17 +37,11 @@ export interface IStorage {
   }>;
 }
 
-export class MemStorage implements IStorage {
-  private applications: Map<string, Application>;
-  private sessions: Map<string, InterviewSession>;
-
-  constructor() {
-    this.applications = new Map();
-    this.sessions = new Map();
-  }
-
-  async getApplication(id: string): Promise<Application | undefined> {
-    return this.applications.get(id);
+export class MongoStorage implements IStorage {
+  async getApplication(id: string): Promise<ApplicationType | undefined> {
+    await connectToDatabase();
+    const app = await Application.findById(id).lean();
+    return app ? this.transformApplication(app) : undefined;
   }
 
   async getApplications(filters?: {
@@ -54,87 +50,97 @@ export class MemStorage implements IStorage {
     search?: string;
     limit?: number;
     offset?: number;
-  }): Promise<{ applications: Application[]; total: number }> {
-    let apps = Array.from(this.applications.values());
+  }): Promise<{ applications: ApplicationType[]; total: number }> {
+    await connectToDatabase();
+
+    // Build query
+    const query: any = {};
     
-    // Apply filters
     if (filters?.status && filters.status !== 'All') {
-      apps = apps.filter(app => app.status.toLowerCase() === filters.status?.toLowerCase());
+      query.status = { $regex: new RegExp(filters.status, 'i') };
     }
     
     if (filters?.tag && filters.tag !== 'All') {
-      apps = apps.filter(app => app.tag.toLowerCase() === filters.tag?.toLowerCase());
+      query.tag = { $regex: new RegExp(filters.tag, 'i') };
     }
     
     if (filters?.search) {
-      const search = filters.search.toLowerCase();
-      apps = apps.filter(app => 
-        app.company.toLowerCase().includes(search) ||
-        app.role.toLowerCase().includes(search)
-      );
+      query.$or = [
+        { company: { $regex: new RegExp(filters.search, 'i') } },
+        { role: { $regex: new RegExp(filters.search, 'i') } }
+      ];
     }
-    
-    // Sort by creation date (newest first)
-    apps.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    
-    const total = apps.length;
-    
-    // Apply pagination
+
     const limit = filters?.limit || 10;
     const offset = filters?.offset || 0;
-    const paginatedApps = apps.slice(offset, offset + limit);
-    
-    return { applications: paginatedApps, total };
+
+    const [applications, total] = await Promise.all([
+      Application.find(query)
+        .sort({ createdAt: -1 })
+        .skip(offset)
+        .limit(limit)
+        .lean(),
+      Application.countDocuments(query)
+    ]);
+
+    return {
+      applications: applications.map(app => this.transformApplication(app)),
+      total
+    };
   }
 
-  async createApplication(insertApp: InsertApplication): Promise<Application> {
-    const id = randomUUID();
-    const now = new Date();
-    const application: Application = {
+  async createApplication(insertApp: InsertApplication): Promise<ApplicationType> {
+    await connectToDatabase();
+    const application = new Application({
       ...insertApp,
-      id,
-      jobUrl: insertApp.jobUrl || null,
-      notes: insertApp.notes || null,
+      jobUrl: insertApp.jobUrl || "",
+      notes: insertApp.notes || "",
       interviewNotes: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.applications.set(id, application);
-    return application;
+    });
+    
+    await application.save();
+    return this.transformApplication(application.toObject());
   }
 
-  async updateApplication(updateApp: UpdateApplication): Promise<Application | undefined> {
-    const existing = this.applications.get(updateApp.id);
-    if (!existing) return undefined;
+  async updateApplication(updateApp: UpdateApplication): Promise<ApplicationType | undefined> {
+    await connectToDatabase();
+    const { id, ...updateData } = updateApp;
     
-    const updated: Application = {
-      ...existing,
-      ...updateApp,
-      updatedAt: new Date(),
-    };
-    this.applications.set(updateApp.id, updated);
-    return updated;
+    const updated = await Application.findByIdAndUpdate(
+      id,
+      { ...updateData, updatedAt: new Date() },
+      { new: true }
+    ).lean();
+    
+    return updated ? this.transformApplication(updated) : undefined;
   }
 
   async deleteApplication(id: string): Promise<boolean> {
-    return this.applications.delete(id);
+    await connectToDatabase();
+    const result = await Application.findByIdAndDelete(id);
+    
+    // Also delete related interview sessions
+    if (result) {
+      await InterviewSession.deleteMany({ applicationId: id });
+    }
+    
+    return !!result;
   }
 
-  async getSessionsByApplication(applicationId: string): Promise<InterviewSession[]> {
-    return Array.from(this.sessions.values())
-      .filter(session => session.applicationId === applicationId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  async getSessionsByApplication(applicationId: string): Promise<InterviewSessionType[]> {
+    await connectToDatabase();
+    const sessions = await InterviewSession.find({ applicationId })
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    return sessions.map(session => this.transformSession(session));
   }
 
-  async createSession(insertSession: InsertSession): Promise<InterviewSession> {
-    const id = randomUUID();
-    const session: InterviewSession = {
-      ...insertSession,
-      id,
-      createdAt: new Date(),
-    };
-    this.sessions.set(id, session);
-    return session;
+  async createSession(insertSession: InsertSession): Promise<InterviewSessionType> {
+    await connectToDatabase();
+    const session = new InterviewSession(insertSession);
+    await session.save();
+    return this.transformSession(session.toObject());
   }
 
   async getApplicationStats(): Promise<{
@@ -143,15 +149,43 @@ export class MemStorage implements IStorage {
     offers: number;
     responseRate: number;
   }> {
-    const apps = Array.from(this.applications.values());
-    const total = apps.length;
-    const interviews = apps.filter(app => app.status === 'interview').length;
-    const offers = apps.filter(app => app.status === 'offer').length;
-    const applied = apps.filter(app => app.status === 'applied').length;
+    await connectToDatabase();
+    
+    const [total, interviews, offers, applied] = await Promise.all([
+      Application.countDocuments({}),
+      Application.countDocuments({ status: 'interview' }),
+      Application.countDocuments({ status: 'offer' }),
+      Application.countDocuments({ status: 'applied' })
+    ]);
+    
     const responseRate = applied > 0 ? Math.round(((interviews + offers) / applied) * 100) : 0;
     
     return { total, interviews, offers, responseRate };
   }
+
+  private transformApplication(app: any): ApplicationType {
+    return {
+      _id: app._id.toString(),
+      company: app.company,
+      role: app.role,
+      status: app.status,
+      tag: app.tag,
+      jobUrl: app.jobUrl,
+      notes: app.notes,
+      interviewNotes: app.interviewNotes,
+      createdAt: app.createdAt,
+      updatedAt: app.updatedAt,
+    };
+  }
+
+  private transformSession(session: any): InterviewSessionType {
+    return {
+      _id: session._id.toString(),
+      applicationId: session.applicationId,
+      questions: session.questions,
+      createdAt: session.createdAt,
+    };
+  }
 }
 
-export const storage = new MemStorage();
+export const storage = new MongoStorage();
