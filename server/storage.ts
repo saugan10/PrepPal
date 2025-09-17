@@ -189,4 +189,137 @@ export class MongoStorage implements IStorage {
   }
 }
 
-export const storage = new MongoStorage();
+// In-memory storage implementation
+export class MemStorage implements IStorage {
+  private applications: ApplicationType[] = [];
+  private sessions: InterviewSessionType[] = [];
+  private nextId = 1;
+
+  async getApplication(id: string): Promise<ApplicationType | undefined> {
+    return this.applications.find(app => app.id === id);
+  }
+
+  async getApplications(filters?: {
+    status?: string;
+    tag?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ applications: ApplicationType[]; total: number }> {
+    let filtered = [...this.applications];
+
+    // Apply filters
+    if (filters?.status && filters.status !== 'All') {
+      filtered = filtered.filter(app => 
+        app.status.toLowerCase().includes(filters.status!.toLowerCase())
+      );
+    }
+    
+    if (filters?.tag && filters.tag !== 'All') {
+      filtered = filtered.filter(app => 
+        app.tag.toLowerCase().includes(filters.tag!.toLowerCase())
+      );
+    }
+    
+    if (filters?.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(app => 
+        app.company.toLowerCase().includes(searchLower) ||
+        app.role.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Sort by creation date (newest first)
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const total = filtered.length;
+    const offset = filters?.offset || 0;
+    const limit = filters?.limit || 10;
+    
+    const applications = filtered.slice(offset, offset + limit);
+
+    return { applications, total };
+  }
+
+  async createApplication(insertApp: InsertApplication): Promise<ApplicationType> {
+    const now = new Date();
+    const application: ApplicationType = {
+      id: this.nextId.toString(),
+      company: insertApp.company,
+      role: insertApp.role,
+      status: insertApp.status,
+      tag: insertApp.tag,
+      jobUrl: insertApp.jobUrl || "",
+      notes: insertApp.notes || "",
+      interviewNotes: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    
+    this.applications.push(application);
+    this.nextId++;
+    return application;
+  }
+
+  async updateApplication(updateApp: UpdateApplication): Promise<ApplicationType | undefined> {
+    const index = this.applications.findIndex(app => app.id === updateApp.id);
+    if (index === -1) return undefined;
+
+    const { id, ...updateData } = updateApp;
+    const updated = {
+      ...this.applications[index],
+      ...updateData,
+      updatedAt: new Date(),
+    };
+    
+    this.applications[index] = updated;
+    return updated;
+  }
+
+  async deleteApplication(id: string): Promise<boolean> {
+    const index = this.applications.findIndex(app => app.id === id);
+    if (index === -1) return false;
+
+    this.applications.splice(index, 1);
+    // Also delete related interview sessions
+    this.sessions = this.sessions.filter(session => session.applicationId !== id);
+    return true;
+  }
+
+  async getSessionsByApplication(applicationId: string): Promise<InterviewSessionType[]> {
+    return this.sessions
+      .filter(session => session.applicationId === applicationId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async createSession(insertSession: InsertSession): Promise<InterviewSessionType> {
+    const session: InterviewSessionType = {
+      id: this.nextId.toString(),
+      applicationId: insertSession.applicationId,
+      questions: insertSession.questions,
+      createdAt: new Date(),
+    };
+    
+    this.sessions.push(session);
+    this.nextId++;
+    return session;
+  }
+
+  async getApplicationStats(): Promise<{
+    total: number;
+    interviews: number;
+    offers: number;
+    responseRate: number;
+  }> {
+    const total = this.applications.length;
+    const interviews = this.applications.filter(app => app.status === 'interview').length;
+    const offers = this.applications.filter(app => app.status === 'offer').length;
+    const applied = this.applications.filter(app => app.status === 'applied').length;
+    
+    const responseRate = applied > 0 ? Math.round(((interviews + offers) / applied) * 100) : 0;
+    
+    return { total, interviews, offers, responseRate };
+  }
+}
+
+export const storage = new MemStorage();
