@@ -2,10 +2,6 @@ import mongoose from "mongoose";
 
 const MONGODB_URI = process.env.MONGODB_URI || process.env.DATABASE_URL || "";
 
-if (!MONGODB_URI) {
-  throw new Error("MONGODB_URI environment variable is required");
-}
-
 let cached = global.mongoose;
 
 if (!cached) {
@@ -13,6 +9,10 @@ if (!cached) {
 }
 
 export async function connectToDatabase() {
+  if (!MONGODB_URI) {
+    throw new Error("Database connection failed. Please ensure MONGODB_URI is set correctly.");
+  }
+
   if (cached.conn) {
     return cached.conn;
   }
@@ -32,10 +32,15 @@ export async function connectToDatabase() {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
-    throw e;
+    console.error("MongoDB connection failed:", e);
+    throw new Error("Database connection failed. Please ensure MONGODB_URI is set correctly.");
   }
 
   return cached.conn;
+}
+
+export function isMongoConfigured(): boolean {
+  return !!MONGODB_URI && (MONGODB_URI.startsWith('mongodb://') || MONGODB_URI.startsWith('mongodb+srv://'));
 }
 
 declare global {

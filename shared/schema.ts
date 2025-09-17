@@ -47,7 +47,7 @@ export const insertSessionSchema = z.object({
 export type InsertApplication = z.infer<typeof insertApplicationSchema>;
 export type UpdateApplication = z.infer<typeof updateApplicationSchema>;
 export type ApplicationType = {
-  _id: string;
+  id: string;
   company: string;
   role: string;
   status: "applied" | "interview" | "offer" | "rejected";
@@ -59,7 +59,7 @@ export type ApplicationType = {
   updatedAt: Date;
 };
 export type InterviewSessionType = {
-  _id: string;
+  id: string;
   applicationId: string;
   questions: any[];
   createdAt: Date;

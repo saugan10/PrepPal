@@ -3,10 +3,17 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertApplicationSchema, updateApplicationSchema, insertSessionSchema } from "@shared/schema";
 import { generateInterviewQuestions, provideFeedback } from "./services/gemini";
+import { isMongoConfigured } from "./database";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Application CRUD routes
   app.get("/api/applications", async (req, res) => {
+    if (!isMongoConfigured()) {
+      return res.status(503).json({ 
+        message: "Database not configured. Please set MONGODB_URI environment variable." 
+      });
+    }
+
     try {
       const { status, tag, search, page = "1", limit = "10" } = req.query;
       const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -26,6 +33,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalPages: Math.ceil(result.total / parseInt(limit as string)),
       });
     } catch (error) {
+      console.error("Failed to fetch applications:", error);
       res.status(500).json({ message: "Failed to fetch applications" });
     }
   });
@@ -89,10 +97,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Statistics route
   app.get("/api/stats", async (req, res) => {
+    if (!isMongoConfigured()) {
+      return res.status(503).json({ 
+        message: "Database not configured. Please set MONGODB_URI environment variable." 
+      });
+    }
+
     try {
       const stats = await storage.getApplicationStats();
       res.json(stats);
     } catch (error) {
+      console.error("Failed to fetch statistics:", error);
       res.status(500).json({ message: "Failed to fetch statistics" });
     }
   });

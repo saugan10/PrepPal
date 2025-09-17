@@ -124,7 +124,7 @@ export default function Dashboard() {
                   <div className="p-6 text-center text-destructive">
                     Failed to load applications. Please try again.
                   </div>
-                ) : data?.applications.length === 0 ? (
+                ) : data?.applications?.length === 0 ? (
                   <div className="p-6 text-center text-muted-foreground">
                     <svg className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -140,7 +140,7 @@ export default function Dashboard() {
                     </Button>
                   </div>
                 ) : (
-                  data?.applications.map((application) => (
+                  data?.applications?.map((application) => (
                     <ApplicationCard
                       key={application.id}
                       application={application}

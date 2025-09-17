@@ -8,7 +8,7 @@ import {
   type InsertSession,
   type QuestionWithAnswer 
 } from "@shared/schema";
-import { connectToDatabase } from "./database";
+import { connectToDatabase, isMongoConfigured } from "./database";
 
 export interface IStorage {
   // Application CRUD
@@ -65,9 +65,10 @@ export class MongoStorage implements IStorage {
     }
     
     if (filters?.search) {
+      const escapedSearch = filters.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { company: { $regex: new RegExp(filters.search, 'i') } },
-        { role: { $regex: new RegExp(filters.search, 'i') } }
+        { company: { $regex: new RegExp(escapedSearch, 'i') } },
+        { role: { $regex: new RegExp(escapedSearch, 'i') } }
       ];
     }
 
@@ -165,7 +166,7 @@ export class MongoStorage implements IStorage {
 
   private transformApplication(app: any): ApplicationType {
     return {
-      _id: app._id.toString(),
+      id: app._id.toString(),
       company: app.company,
       role: app.role,
       status: app.status,
@@ -180,7 +181,7 @@ export class MongoStorage implements IStorage {
 
   private transformSession(session: any): InterviewSessionType {
     return {
-      _id: session._id.toString(),
+      id: session._id.toString(),
       applicationId: session.applicationId,
       questions: session.questions,
       createdAt: session.createdAt,
