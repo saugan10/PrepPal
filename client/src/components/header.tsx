@@ -19,23 +19,27 @@ export default function Header() {
           </div>
           
           <nav className="hidden md:flex items-center space-x-6">
-            <Link href="/">
-              <a className={`font-medium transition-colors pb-1 ${
+            <Link 
+              href="/" 
+              className={`font-medium transition-colors pb-1 ${
                 location === '/' 
                   ? 'text-primary border-b-2 border-primary' 
                   : 'text-muted-foreground hover:text-foreground'
-              }`} data-testid="nav-applications">
-                Applications
-              </a>
+              }`} 
+              data-testid="nav-applications"
+            >
+              Applications
             </Link>
-            <Link href="/ai-prep">
-              <a className={`font-medium transition-colors pb-1 ${
+            <Link 
+              href="/ai-prep" 
+              className={`font-medium transition-colors pb-1 ${
                 location.startsWith('/ai-prep')
                   ? 'text-primary border-b-2 border-primary'
                   : 'text-muted-foreground hover:text-foreground'
-              }`} data-testid="nav-ai-prep">
-                AI Prep
-              </a>
+              }`} 
+              data-testid="nav-ai-prep"
+            >
+              AI Prep
             </Link>
           </nav>
           
