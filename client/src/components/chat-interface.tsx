@@ -22,21 +22,56 @@ export default function ChatInterface({ applicationId, role, company, onSessionC
   const [sessionQuestions, setSessionQuestions] = useState<QuestionWithAnswer[]>([]);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   
+  // Queue of upcoming questions and a set of asked ones to avoid repeats
+  const [availableQuestions, setAvailableQuestions] = useState<string[]>([]);
+  const askedRef = useRef<Set<string>>(new Set());
+
+  const normalize = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+  const shuffle = (arr: string[]) => [...arr].sort(() => Math.random() - 0.5);
+
+  function askQuestion(question: string) {
+    setCurrentQuestion(question);
+    askedRef.current.add(normalize(question));
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: "question",
+      content: question,
+      timestamp: new Date(),
+    };
+    setMessages((prev: ChatMessage[]) => [...prev, newMessage]);
+  }
   const generateQuestionMutation = useMutation({
     mutationFn: () => api.generateQuestions(role, company),
     onSuccess: (data: any) => {
-      if (data.questions.length > 0) {
-        const question = data.questions[0];
-        setCurrentQuestion(question);
-        
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          type: "question",
-          content: question,
-          timestamp: new Date(),
-        };
-        
-        setMessages((prev: ChatMessage[]) => [...prev, newMessage]);
+      const incoming: string[] = Array.isArray(data.questions) ? data.questions : [];
+
+      // Filter out already asked and ensure valid questions
+      const uniq = incoming.filter((q: string) => {
+        const n = normalize(q || "");
+        return q && q.includes("?") && !askedRef.current.has(n);
+      });
+      const uniqShuffled = shuffle(uniq);
+
+      if (!currentQuestion) {
+        if (availableQuestions.length > 0) {
+          const [next, ...rest] = availableQuestions;
+          const combined = [...rest, ...uniqShuffled];
+          setAvailableQuestions(combined);
+          askQuestion(next);
+        } else if (uniqShuffled.length > 0) {
+          const [next, ...rest] = uniqShuffled;
+          setAvailableQuestions(rest);
+          askQuestion(next);
+        } else if (incoming.length > 0) {
+          // Fallback: pick a random question from incoming
+          const random = incoming[Math.floor(Math.random() * incoming.length)];
+          askQuestion(random);
+        }
+      } else {
+        // Queue the new unique questions for later
+        if (uniqShuffled.length > 0) {
+          setAvailableQuestions(prev => [...prev, ...uniqShuffled]);
+        }
       }
     },
   });
@@ -117,7 +152,13 @@ export default function ChatInterface({ applicationId, role, company, onSessionC
   };
 
   const startNewQuestion = () => {
-    generateQuestionMutation.mutate();
+    if (availableQuestions.length > 0) {
+      const [next, ...rest] = availableQuestions;
+      setAvailableQuestions(rest);
+      askQuestion(next);
+    } else {
+      generateQuestionMutation.mutate();
+    }
   };
 
   const endSession = () => {
